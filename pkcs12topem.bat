@@ -23,7 +23,7 @@ REM set PASSWORD=
 REM set PASSPHRASE=
 
 REM Loop through all certs
-for /f "eol=#" %%a in ('dir input\*.p12 /b') do (
+for /f "eol=#" %%a in ('dir input\*.pfx /b') do (
 	call :PROCESS input "%%a" "%PASSWORD%" "%PASSPHRASE%"
 )
 echo Done!
@@ -46,6 +46,7 @@ if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
 REM Create key .pem file
 echo Create key .pem file
+REM bin\openssl pkcs12 -in "%CERTFILE%" -nocerts -password pass:%PASSWD% -passout pass:%PASSPH% | bin\sed -ne "/-BEGIN ENCRYPTED PRIVATE KEY-/,/-END ENCRYPTED PRIVATE KEY-/p" > "%OUTDIR%\%PREFIX%.key"
 bin\openssl pkcs12 -in "%CERTFILE%" -nocerts -password pass:%PASSWD% -passout pass:%PASSPH% | bin\sed -ne "/-BEGIN ENCRYPTED PRIVATE KEY-/,/-END ENCRYPTED PRIVATE KEY-/p" > "%OUTDIR%\%PREFIX%.key"
 if errorlevel 0 echo Created "%OUTDIR%\%PREFIX%.key"
 
@@ -57,7 +58,8 @@ if errorlevel 0 echo Created "%OUTDIR%\%PREFIX%.pem"
 
 REM Create not secure certificate .pem file 
 echo Create certificate .pem file
-bin\openssl pkcs12 -in "%CERTFILE%" -nokeys -password pass:%PASSWD% | bin\sed -ne "/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p" > "%OUTDIR%\%PREFIX%.notsecure.pem"
+rem bin\openssl pkcs12 -in "%CERTFILE%" -nokeys -password pass:%PASSWD% | bin\sed -ne "/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p" > "%OUTDIR%\%PREFIX%.notsecure.pem"
+bin\openssl pkcs12 -in "%CERTFILE%" -nokeys -password pass:%PASSWD% > "%OUTDIR%\%PREFIX%.notsecure.pem"
 if errorlevel 0 echo Created "%OUTDIR%\%PREFIX%.notsecure.pem"
 
 REM Decrypt key file
@@ -69,6 +71,13 @@ REM Convert to  Java Certificate
 echo Converting to Java x509 format
 bin\openssl x509 -inform pem -in "%OUTDIR%\%PREFIX%.pem" -outform der -out "%OUTDIR%\%PREFIX%.x509.cer"
 if errorlevel 0 echo  Java x509 certificate is "%OUTDIR%\%PREFIX%.x509.cer"
+
+REM Convert 
+echo Converting for SSLProxyMachineCertificateFile 
+bin\openssl pkcs12 -in "%CERTFILE%" -out "%OUTDIR%\cert.key" -nocerts -nodes -password pass:%PASSWD% -passout pass:%PASSPH%"
+bin\openssl rsa -in "%OUTDIR%\cert.key" -out "%OUTDIR%\client.key"
+bin\openssl pkcs12 -in "%CERTFILE%" -password pass:%PASSWD% -out "%OUTDIR%\client.pem" -clcerts -nokeys
+bin\cat "%OUTDIR%\client.key" >> "%OUTDIR%\client.pem"
 goto :EOF
 
 :LOADCONFIG
